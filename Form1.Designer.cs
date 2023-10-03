@@ -99,6 +99,7 @@
             // 
             // pokemonsListView
             // 
+            this.pokemonsListView.Alignment = System.Windows.Forms.ListViewAlignment.Default;
             this.pokemonsListView.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
             this.pokemonName});
             this.mainLayout.SetColumnSpan(this.pokemonsListView, 2);
@@ -106,10 +107,11 @@
             this.pokemonsListView.HeaderStyle = System.Windows.Forms.ColumnHeaderStyle.None;
             this.pokemonsListView.Location = new System.Drawing.Point(3, 33);
             this.pokemonsListView.Name = "pokemonsListView";
+            this.pokemonsListView.ShowItemToolTips = true;
             this.pokemonsListView.Size = new System.Drawing.Size(338, 155);
             this.pokemonsListView.TabIndex = 4;
             this.pokemonsListView.UseCompatibleStateImageBehavior = false;
-            this.pokemonsListView.View = System.Windows.Forms.View.List;
+            this.pokemonsListView.View = System.Windows.Forms.View.Tile;
             // 
             // pokemonName
             // 
