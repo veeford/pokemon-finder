@@ -1,38 +1,53 @@
-﻿
-using System.Text.Json.Serialization;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace pokemon
+namespace CustomPokemonControl
 {
-    public class RootClass
+    public class Pokemon
     {
-        public int Count { get; }
-        public string? Next { get; }
-        public string? Previous { get; }
-        public List<Pokemon> Results { get; }
+        int id;
+        string name;
+        int hp;
+        int attack;
+        List<Ability> abilities;
+        string? previewLink;
+        string? fullLink;
+        //Bitmap previewImage;
+        //Bitmap fullImage;
 
-        public RootClass(int count, string next, string previous, List<Pokemon> results)
+        public int Id { get { return id; } }
+        public string Name { get { return name; } }
+        public int HP { get { return hp; } }
+        public int Attack { get { return attack;} }
+        public List<Ability> Abilities { get { return abilities; } }
+        public string? PreviewLink { get { return previewLink; } }
+        public string? FullLink { get { return fullLink; } }
+        //public Bitmap FullImage { get { return fullImage; } }
+        //public Bitmap PreviewImage { get { return previewImage; } }
+
+        public Pokemon(int id, string name, int hp, int attack, List<Ability> abilities, string previewLink, string fullLink)
         {
-            Count = count;
-            Next = next;
-            Previous = previous;
-            Results = results;
+            this.id = id;
+            this.name = name;
+            this.hp = hp;
+            this.attack = attack;
+            this.abilities = abilities;
+            this.previewLink = previewLink;
+            this.fullLink = fullLink;
         }
 
         public override string ToString()
         {
-            return $"Count: {Count}, next: {Next}, prev: {Previous}, results: {Results.Count}";
-        }
-    }
-
-    public class Pokemon
-    {
-        public string Name { get; }
-        public string Url { get; }
-
-        public Pokemon(string name, string url)
-        {
-            Name = name;
-            Url = url;
+            var result = $"Pokemon {id}\nName: {name}\nHP: {hp}\nAttack: {attack}\nAbilities:\n";
+            foreach (var ability in abilities)
+            {
+                result += $"\tAbility {ability.Id}\n\tName: {ability.Name}\n\tDescription: {ability.Description}\n";
+            }
+            result += $"Preview link: {previewLink ?? "Not present"}\nFull link: {fullLink ?? "Not present"}\n";
+            return result;
         }
     }
 }
