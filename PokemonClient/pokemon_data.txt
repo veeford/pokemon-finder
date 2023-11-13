@@ -1,0 +1,23 @@
+#2 Rest API
+Список покемонов с пагинацией
+Каждый пункт - картинка, название, пара хар-к, кнопка "выбрать"
+При клике на пикчу или название - расширенное описание (4 хар-ки)
+"Выбрать" - вызов на бой случайного покемона
+СХЕМА БОЯ:
+1) ввод числа от 1 до 10 у юзера, получение рандомного числа от 1 до 10 у ПК
+2) если четность совпадает - атакует юзер
+3) если четность не совпадает - атакует ПК
+4) от ХП отнимается сила атаки; раунды идут до смерти
+
+Результат выгружается в БД PostgreSQL
+
+// сила атаки - pokemon/stats/1/base_stat (attack)
+// ХП - pokemon/stats/0/base_stat (hp)
+// стандартная картинка - pokemon/sprites/other/official-artwork/front_default
+// уменьшенная картинка - pokemon/sprites/front_default
+// имя - pokemon/name
+// абилки - pokemon/abilities
+
+ОБЪЕКТЫ:
+Pokemon {int Id, string Name, int Hp, int Attack, Ability[] Abilities, Bitmap PreviewImage, Bitmap FullImage}
+Ability {int Id, string Name [ability/names/7(en)/name], string Description [ability/effect_entries/1(en)/short_effect]}
