@@ -1,4 +1,6 @@
-﻿using System.Text.Json.Nodes;
+﻿using FluentFTP;
+using System.Diagnostics;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace PokemonWeb
@@ -177,6 +179,32 @@ namespace PokemonWeb
         {
             EmailService service = new EmailService();
             await service.SendEmailAsync(email, message, message);
+        }
+
+        public async Task SaveDataToFtp(Pokemon pokemon)
+        {
+            // auth to FTP
+            var ftpClient = new AsyncFtpClient(Config.FtpAddress, Config.FtpUsername, Config.FtpPassword);
+            await ftpClient.Connect();
+            // format Markdown; pokemon - header (#)
+            string mdTemplate = $"# {pokemon.Name}\r\n**HP:** {pokemon.HP}\r\n\r\n**Attack:** {pokemon.Attack}\r\n## Abilities";
+            foreach (var ability in pokemon.Abilities)
+            {
+                mdTemplate += $"\r\n**{ability.Name}.** {ability.Description}\r\n";
+            }
+            mdTemplate += $"## Image\r\n![image]({pokemon.FullLink})";
+            // create Markdown file locally
+            var file = File.CreateText($"{pokemon.Name}.md");
+            file.Write(mdTemplate);
+            file.Flush();
+            file.Close();
+            // format date for folder name
+            string folderName = DateTime.Now.ToString("yyyyMMdd");
+            // save file to folder
+            await ftpClient.UploadFile($"{pokemon.Name}.md", $"/{folderName}/{pokemon.Name}.md", FtpRemoteExists.Overwrite, true);
+            await ftpClient.Disconnect();
+            // delete local copy of Markdown file
+            File.Delete($"{pokemon.Name}.md");
         }
 
         public int PageSize { get { return pageSize; } }

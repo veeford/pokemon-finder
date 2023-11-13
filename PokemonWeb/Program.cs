@@ -9,6 +9,9 @@ var app = builder.Build();
 builder.Configuration.AddJsonFile("appsettings.json");
 Config.EmailAddress = builder.Configuration["EmailAddress"];
 Config.EmailPasswd = builder.Configuration["EmailPassword"];
+Config.FtpAddress = builder.Configuration["FtpAddress"];
+Config.FtpUsername = builder.Configuration["FtpUsername"];
+Config.FtpPassword = builder.Configuration["FtpPassword"];
 var pokemonApi = new PokemonApi();
 Fight fight = new();
 FightsLog log = new();
@@ -211,7 +214,16 @@ app.Run(async (context) =>
                 await response.WriteAsync("No Pokemon player's ID in \"player\" query.");
             }
         }
-        else if (reGetPokemon.IsMatch(path) && request.Method == "GET")
+        else if (reSendEmail.IsMatch(path) && request.Method == "GET")
+        {
+            await fight.SendFightEmailAsync(log, query["email"]!);
+        }
+        else if (reDebugSendEmail.IsMatch(path) && request.Method == "GET")
+        {
+            await pokemonApi.SendEmailAsync(query["email"]!, query["msg"]!);
+            await response.WriteAsync($"E-mail \"{query["msg"]}\" sent on \"{query["email"]}\"");
+        }
+        else if (reFtpSendMarkdown.IsMatch(path) && request.Method == "GET")
         {
             int id;
             bool isValidId = int.TryParse(path.Value!.Split('/')[2], out id);
@@ -220,10 +232,8 @@ app.Run(async (context) =>
                 try
                 {
                     var pokemon = await pokemonApi.GetPokemonAsync($"pokemon/{id}");
-                    // auth to FTP
-                    // format Markdown; pokemon - header (#)
-                    // create folder "yyyymmdd"
-                    // save file to folder
+                    await pokemonApi.SaveDataToFtp(pokemon);
+                    await response.WriteAsync($"Pokemon \"{pokemon.Name}\"'s data sent to FTP.");
                 }
                 catch (Exception exc)
                 {
@@ -235,15 +245,6 @@ app.Run(async (context) =>
                 response.StatusCode = 404;
                 await response.WriteAsync("Invalid id");
             }
-        }
-        else if (reSendEmail.IsMatch(path) && request.Method == "GET")
-        {
-            await fight.SendFightEmailAsync(log, query["email"]!);
-        }
-        else if (reDebugSendEmail.IsMatch(path) && request.Method == "GET")
-        {
-            await pokemonApi.SendEmailAsync(query["email"]!, query["msg"]!);
-            await response.WriteAsync($"E-mail \"{query["msg"]}\" sent on \"{query["email"]}\"");
         }
     }
     catch (Exception exc)
