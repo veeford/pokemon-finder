@@ -1,5 +1,7 @@
 ﻿using FluentFTP;
+using Microsoft.Extensions.Caching.Distributed;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
@@ -9,12 +11,14 @@ namespace PokemonWeb
     {
         int pageSize;
         HttpClient httpClient;
+        IDistributedCache cache;
 
-        public PokemonApi()
+        public PokemonApi(IDistributedCache distributedCache)
         {
             pageSize = 10;
             httpClient = new HttpClient();
             httpClient.BaseAddress = new Uri("https://pokeapi.co/api/v2/");
+            cache = distributedCache;
         }
 
         public async Task<string> GetPokemons(int pageNumber)
@@ -37,96 +41,134 @@ namespace PokemonWeb
 
         public async Task<Ability> GetAbilityAsync(string url)
         {
-            var result = await httpClient.GetAsync(url);
-            if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+            Ability? ability = null;
+            var abilityString = await cache.GetStringAsync(url);
+            if (abilityString != null)
             {
-                throw new KeyNotFoundException($"Ability on URL \"{url}\" not found");
+                ability = JsonSerializer.Deserialize<Ability>(abilityString);
+            }
+            if (ability == null)
+            {
+                var result = await httpClient.GetAsync(url);
+                if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    throw new KeyNotFoundException($"Ability on URL \"{url}\" not found");
+                }
+                else
+                {
+                    string json = await result.Content.ReadAsStringAsync();
+                    var node = JsonNode.Parse(json!);
+                    int id = 0;
+                    string name = "no name";
+                    string description = "no description";
+
+                    id = int.Parse(node!["id"]!.ToString());
+                    name = node!["name"]!.ToString();
+                    var names = (JsonArray)node!["names"]!;
+                    foreach (var _name in names)
+                    {
+                        if (_name!["language"]!["name"]!.ToString() == "en")
+                        {
+                            name = _name!["name"]!.ToString();
+                        }
+                    }
+
+                    var entries = (JsonArray)node!["effect_entries"]!;
+                    foreach (var entry in entries)
+                    {
+                        if (entry!["language"]!["name"]!.ToString() == "en")
+                        {
+                            description = entry!["short_effect"]!.ToString();
+                        }
+                    }
+                    Console.WriteLine($"Ability {url} got from PokeAPI");
+                    ability = new Ability(id, name, description);
+                    abilityString = JsonSerializer.Serialize(ability);
+                    await cache.SetStringAsync(url, abilityString, new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12)
+                    });
+                }
             }
             else
             {
-                string json = await result.Content.ReadAsStringAsync();
-                var node = JsonNode.Parse(json!);
-                int id = 0;
-                string name = "no name";
-                string description = "no description";
-
-                id = int.Parse(node!["id"]!.ToString());
-                name = node!["name"]!.ToString();
-                var names = (JsonArray)node!["names"]!;
-                foreach (var _name in names)
-                {
-                    if (_name!["language"]!["name"]!.ToString() == "en")
-                    {
-                        name = _name!["name"]!.ToString();
-                    }
-                }
-
-                var entries = (JsonArray)node!["effect_entries"]!;
-                foreach (var entry in entries)
-                {
-                    if (entry!["language"]!["name"]!.ToString() == "en")
-                    {
-                        description = entry!["short_effect"]!.ToString();
-                    }
-                }
-
-                return new Ability(id, name, description);
+                Console.WriteLine($"Ability {url} got from cache");
             }
+            return ability;
         }
 
         public async Task<Pokemon> GetPokemonAsync(string url)
         {
-            var result = await httpClient.GetAsync(url);
-            if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+            Pokemon? pokemon = null;
+            var pokemonString = await cache.GetStringAsync(url);
+            if (pokemonString != null)
             {
-                throw new KeyNotFoundException($"Pokemon on URL \"{url}\" not found");
+                pokemon = JsonSerializer.Deserialize<Pokemon>(pokemonString);
+            }
+            if (pokemon == null)
+            {
+                var result = await httpClient.GetAsync(url);
+                if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    throw new KeyNotFoundException($"Pokemon on URL \"{url}\" not found");
+                }
+                else
+                {
+                    string json = await result.Content.ReadAsStringAsync();
+                    var node = JsonNode.Parse(json!);
+                    Regex suburl = new Regex(@"https://pokeapi\.co/api/v2/");
+                    
+                    int id = 0;
+                    string name = "no name";
+                    int hp = 0;
+                    int attack = 0;
+                    List<Ability> abilities = new();
+                    string? previewLink = "no preview";
+                    string? fullLink = "no full";
+
+                    id = int.Parse(node!["id"]!.ToString());
+                    name = node!["name"]!.ToString();
+                    var stats = (JsonArray)node!["stats"]!;
+                    foreach (var stat in stats)
+                    {
+                        if (stat!["stat"]!["name"]!.ToString() == "hp")
+                        {
+                            hp = int.Parse(stat!["base_stat"]!.ToString());
+                        }
+                        else if (stat!["stat"]!["name"]!.ToString() == "attack")
+                        {
+                            attack = int.Parse(stat!["base_stat"]!.ToString());
+                        }
+                    }
+
+                    var abilitiesJson = (JsonArray)node!["abilities"]!;
+                    foreach (var abilityJson in abilitiesJson)
+                    {
+                        var formattedUrl = suburl.Replace(abilityJson!["ability"]!["url"]!.ToString(), "");
+                        var ability = await GetAbilityAsync(formattedUrl);
+                        abilities.Add(ability);
+                    }
+
+                    var previewLinkNode = node!["sprites"]!["front_default"];
+                    var fullLinkNode = node!["sprites"]!["other"]!["official-artwork"]!["front_default"];
+                    if (previewLinkNode != null)
+                        previewLink = previewLinkNode.ToString();
+                    if (fullLinkNode != null)
+                        fullLink = fullLinkNode.ToString();
+                    Console.WriteLine($"Pokemon {url} got from PokeAPI");
+                    pokemon = new Pokemon(id, name, hp, attack, abilities, previewLink, fullLink);
+                    pokemonString = JsonSerializer.Serialize(pokemon);
+                    await cache.SetStringAsync(url, pokemonString, new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12)
+                    });
+                }
             }
             else
             {
-                string json = await result.Content.ReadAsStringAsync();
-                var node = JsonNode.Parse(json!);
-                Regex suburl = new Regex(@"https://pokeapi\.co/api/v2/");
-                
-                int id = 0;
-                string name = "no name";
-                int hp = 0;
-                int attack = 0;
-                List<Ability> abilities = new();
-                string? previewLink = "no preview";
-                string? fullLink = "no full";
-
-                id = int.Parse(node!["id"]!.ToString());
-                name = node!["name"]!.ToString();
-                var stats = (JsonArray)node!["stats"]!;
-                foreach (var stat in stats)
-                {
-                    if (stat!["stat"]!["name"]!.ToString() == "hp")
-                    {
-                        hp = int.Parse(stat!["base_stat"]!.ToString());
-                    }
-                    else if (stat!["stat"]!["name"]!.ToString() == "attack")
-                    {
-                        attack = int.Parse(stat!["base_stat"]!.ToString());
-                    }
-                }
-
-                var abilitiesJson = (JsonArray)node!["abilities"]!;
-                foreach (var abilityJson in abilitiesJson)
-                {
-                    var formattedUrl = suburl.Replace(abilityJson!["ability"]!["url"]!.ToString(), "");
-                    var ability = await GetAbilityAsync(formattedUrl);
-                    abilities.Add(ability);
-                }
-
-                var previewLinkNode = node!["sprites"]!["front_default"];
-                var fullLinkNode = node!["sprites"]!["other"]!["official-artwork"]!["front_default"];
-                if (previewLinkNode != null)
-                    previewLink = previewLinkNode.ToString();
-                if (fullLinkNode != null)
-                    fullLink = fullLinkNode.ToString();
-
-                return new Pokemon(id, name, hp, attack, abilities, previewLink, fullLink);
+                Console.WriteLine($"Pokemon {url} got from cache");
             }
+            return pokemon;
         }
 
         public async Task<Pokemon> GetRandomPokemonAsync()
