@@ -2,17 +2,24 @@ using PokemonWeb;
 using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using System.Web;
+using Microsoft.Extensions.Caching.Distributed;
 
 var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
 builder.Configuration.AddJsonFile("appsettings.json");
+builder.Services.AddStackExchangeRedisCache(options => {
+    options.Configuration = builder.Configuration["RedisAddress"];
+    options.InstanceName = "local";
+});
+var app = builder.Build();
+
 Config.EmailAddress = builder.Configuration["EmailAddress"];
 Config.EmailPasswd = builder.Configuration["EmailPassword"];
 Config.FtpAddress = builder.Configuration["FtpAddress"];
 Config.FtpUsername = builder.Configuration["FtpUsername"];
 Config.FtpPassword = builder.Configuration["FtpPassword"];
-var pokemonApi = new PokemonApi();
+var pokemonApi = new PokemonApi(app!.Services.GetService<IDistributedCache>()!);
 Fight fight = new();
 FightsLog log = new();
 
